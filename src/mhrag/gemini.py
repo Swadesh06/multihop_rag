@@ -55,22 +55,41 @@ class GeminiPool:
                  temp: float = 0.8, max_out: int = 1024,
                  thinking: str = "minimal",
                  response_schema: Type[BaseModel] | None = None,
+                 json_mode: bool = False,
                  top_p: float | None = None):
+        """response_schema enforces strict JSON schema (may fail on dict[str,X]
+        because Gemini rejects additionalProperties). Set json_mode=True to get
+        JSON mime without a strict schema; caller then validates with pydantic."""
         self.model = model
         self.sem = asyncio.Semaphore(concurrency)
         self.response_schema = response_schema
         cfg_kwargs: dict[str, Any] = dict(
             temperature=temp, max_output_tokens=max_out,
-            response_mime_type="application/json" if response_schema else "text/plain",
+            response_mime_type=(
+                "application/json" if (response_schema or json_mode) else "text/plain"),
         )
         if response_schema is not None:
-            cfg_kwargs["response_schema"] = response_schema
+            try:
+                # probe: build config with schema; if it trips, fall back to json_mode
+                test_cfg = gtypes.GenerateContentConfig(
+                    temperature=0.0, max_output_tokens=1,
+                    response_mime_type="application/json",
+                    response_schema=response_schema)
+                cfg_kwargs["response_schema"] = response_schema
+            except Exception:
+                self.response_schema = None  # schema invalid -> free JSON
         tc = _thinking_cfg(thinking)
         if tc is not None:
             cfg_kwargs["thinking_config"] = tc
         if top_p is not None:
             cfg_kwargs["top_p"] = top_p
-        self.cfg = gtypes.GenerateContentConfig(**cfg_kwargs)
+        try:
+            self.cfg = gtypes.GenerateContentConfig(**cfg_kwargs)
+        except Exception:
+            # Retry without the schema if Gemini rejects it
+            cfg_kwargs.pop("response_schema", None)
+            self.response_schema = None
+            self.cfg = gtypes.GenerateContentConfig(**cfg_kwargs)
         self._c = _client()
 
     async def _call(self, prompt: str) -> str:
@@ -81,11 +100,32 @@ class GeminiPool:
                     resp = await self._c.aio.models.generate_content(
                         model=self.model, contents=prompt, config=self.cfg)
                     return resp.text or ""
+                except ValueError as e:
+                    msg = str(e)
+                    if "additionalProperties" in msg or "not supported" in msg:
+                        # Gemini rejected the schema -> strip it and retry in json_mode
+                        _LOG.warning(f"gemini schema rejected ({msg[:120]}); retrying without schema")
+                        cfg_dict = {
+                            "temperature": self.cfg.temperature,
+                            "max_output_tokens": self.cfg.max_output_tokens,
+                            "response_mime_type": "application/json",
+                        }
+                        if self.cfg.thinking_config is not None:
+                            cfg_dict["thinking_config"] = self.cfg.thinking_config
+                        if self.cfg.top_p is not None:
+                            cfg_dict["top_p"] = self.cfg.top_p
+                        self.cfg = gtypes.GenerateContentConfig(**cfg_dict)
+                        self.response_schema = None
+                        continue
+                    last_err = e
+                    if not _is_transient(e) and attempt > 2:
+                        raise
+                    sleep_s = min(60.0, 2.0 * (2 ** (attempt - 1))) * (0.75 + 0.5 * random.random())
+                    await asyncio.sleep(sleep_s)
                 except Exception as e:
                     last_err = e
                     if not _is_transient(e) and attempt > 2:
                         raise
-                    # Exp backoff + jitter; cap at 60s
                     sleep_s = min(60.0, 2.0 * (2 ** (attempt - 1))) * (0.75 + 0.5 * random.random())
                     await asyncio.sleep(sleep_s)
             raise last_err or RuntimeError("unreachable")

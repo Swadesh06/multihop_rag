@@ -72,18 +72,23 @@ def validate_qg_record(rec: dict, doc_by_id: dict[str, dict]) -> tuple[bool, lis
         if _re.search(r"\b" + _re.escape(short.lower()) + r"\b", q.lower()):
             issues.append("answer_in_question")
     bridge = qo.bridge_entity.strip()
-    if bridge and bridge.lower() in q.lower():
+    if bridge and bridge.lower() in q.lower() and len(bridge) >= 4:
         issues.append("bridge_in_question")
-    # verbatim quoted spans
+    # verbatim quoted spans: whitespace-normalized match (model may collapse newlines)
+    import re as _re
+    def _norm_ws(x: str) -> str:
+        return _re.sub(r"\s+", " ", x or "").strip()
     bad_spans = []
     for did, spans in (qo.quoted_spans or {}).items():
         dc = doc_by_id.get(did)
         if not dc:
             bad_spans.append(f"unknown_doc:{did}")
             continue
-        full = (dc.get("clean_text") or "")
+        full_norm = _norm_ws(dc.get("clean_text") or "")
         for sp in spans or []:
-            if sp and sp not in full:
+            if not sp:
+                continue
+            if _norm_ws(sp) not in full_norm:
                 bad_spans.append("span_not_in_doc")
                 break
     if bad_spans:

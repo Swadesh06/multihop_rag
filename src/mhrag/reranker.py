@@ -6,7 +6,11 @@ from .gemini import GeminiPool, parse_json_lenient, RerankerOutput, validate_obj
 
 
 def build_reranker_prompt(template: str, docs_block: str, candidates: list[dict]) -> str:
-    """candidates: list of {idx, query, short_answer, long_answer, reasoning_chain, ...}"""
+    """candidates: list of {idx, query, short_answer, long_answer, reasoning_chain, ...}.
+
+    Uses .replace() not .format() because the prompt template contains JSON
+    braces that would trip str.format.
+    """
     lines = []
     for i, c in enumerate(candidates):
         lines.append(f"--- CANDIDATE {i} ---")
@@ -18,9 +22,10 @@ def build_reranker_prompt(template: str, docs_block: str, candidates: list[dict]
         lines.append(f"reasoning_chain: {c.get('reasoning_chain','')}")
         lines.append("")
     candidates_block = "\n".join(lines)
-    return template.format(n_candidates=len(candidates),
-                            documents_block=docs_block,
-                            candidates_block=candidates_block)
+    return (template
+            .replace("{n_candidates}", str(len(candidates)))
+            .replace("{documents_block}", docs_block)
+            .replace("{candidates_block}", candidates_block))
 
 
 def heuristic_candidate_score(cand: dict) -> float:

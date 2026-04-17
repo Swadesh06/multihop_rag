@@ -6,9 +6,13 @@ from .gemini import SolvOutput, validate_obj, parse_json_lenient
 
 def build_solv_prompt(template: str, q: str, short_answer: str,
                       doc_id: str, title: str, chunks_text: str) -> str:
-    return template.format(question=q, short_answer=short_answer,
-                            doc_id=doc_id, title=title,
-                            document_chunks_text=chunks_text)
+    """Uses .replace() not .format() because prompt contains JSON braces."""
+    return (template
+            .replace("{question}", q)
+            .replace("{short_answer}", short_answer)
+            .replace("{doc_id}", doc_id)
+            .replace("{title}", title)
+            .replace("{document_chunks_text}", chunks_text))
 
 
 def decide(solv_per_doc: list[dict]) -> tuple[str, float]:

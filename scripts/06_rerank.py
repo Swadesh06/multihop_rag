@@ -80,11 +80,6 @@ async def run(args):
 
     template = load_prompt("reranker")
 
-    def docs_block(pid: str, dids: list[str]) -> str:
-        from scripts_05 import _dummy  # placeholder to avoid import; inlined below
-        return ""
-
-    # Inlined docs block
     DOC_LETTERS = "ABCDEFGHIJKLMNOP"
     def build_block(dids: list[str], hints: dict[str, list[str]]) -> str:
         lines = []

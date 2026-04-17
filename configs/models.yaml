@@ -12,7 +12,7 @@ llm:
       - gemini-2.0-flash-lite
     thinking_level: minimal
     temperature: 0.9
-    max_output_tokens: 1024
+    max_output_tokens: 2048
 
   # Step 6 -- LLM-as-judge reranker over best-of-N QG candidates. Upgrade over rule-based scoring.
   reranker:
