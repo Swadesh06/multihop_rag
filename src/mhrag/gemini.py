@@ -232,9 +232,11 @@ class ChunkMappingOutput(BaseModel):
 
 
 def validate_obj(d: dict, schema: Type[BaseModel]) -> BaseModel | None:
+    if not isinstance(d, dict):
+        return None
     try:
         return schema(**d)
-    except ValidationError:
+    except (ValidationError, TypeError):
         return None
 
 
