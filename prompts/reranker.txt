@@ -1,0 +1,36 @@
+You are selecting the best multi-hop question from {n_candidates} candidates generated for the same set of source documents.
+
+============================================================
+SOURCE DOCUMENTS
+============================================================
+{documents_block}
+============================================================
+
+CANDIDATE QUESTIONS
+{candidates_block}
+
+============================================================
+
+TASK
+Return the index (0-based) of the BEST candidate plus a short justification. Apply these criteria in order:
+
+1. GENUINELY MULTI-HOP. Discard candidates whose answer is recoverable from a single source document. Skim each candidate and verify both documents are required.
+2. QUOTED SPANS ARE VERBATIM. Each quoted span in the candidate's `long_answer` must appear character-for-character in the stated source document. If a span is paraphrased/fabricated, the candidate is disqualified.
+3. BRIDGE IS IMPLICIT. The question must not directly name the bridge entity.
+4. ANSWER SPECIFICITY. Short answer is a precise entity/phrase, not a pronoun or "yes/no".
+5. GROUNDING. The long answer cites every factual claim to a document and the reasoning_chain steps clearly connect the documents.
+6. NATURALNESS. The question reads like a real user question, not a puzzle or template.
+
+If all candidates are disqualified under (1) or (2), return index -1.
+
+OUTPUT FORMAT (strict JSON)
+{
+  "best_index": <integer, 0-based; -1 if all disqualified>,
+  "justification": "<1-2 sentences>",
+  "candidate_issues": [
+    {"index": 0, "issues": ["..."]},
+    {"index": 1, "issues": ["..."]}
+  ]
+}
+
+Output ONLY the JSON. No preamble.

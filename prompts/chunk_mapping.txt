@@ -1,0 +1,21 @@
+You are mapping an atomic answer_point to the exact chunk in a source document that supports it. Only invoked as a fallback when string matching and embedding similarity both fail.
+
+ANSWER POINT: {answer_point}
+
+--- CANDIDATE CHUNKS FROM DOCUMENT (doc_id: {doc_id}) ---
+{chunks_block}
+---
+
+TASK
+Return the chunk_id of the chunk that most directly supports the answer point, and the EXACT verbatim span (character-level) within that chunk that contains the evidence. If no chunk supports the answer point, return null.
+
+OUTPUT FORMAT (strict JSON)
+{
+  "chunk_id": "<chunk id or null>",
+  "span_start_char_in_chunk": <int or null>,
+  "span_end_char_in_chunk": <int or null>,
+  "span_text": "<exact verbatim text or null>",
+  "confidence": "high|medium|low"
+}
+
+Output ONLY the JSON. No preamble.

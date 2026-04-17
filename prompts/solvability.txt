@@ -1,0 +1,63 @@
+You are evaluating whether a question can be answered using ONLY the single document provided below. This is a solvability test for multi-hop question validation.
+
+QUESTION: {question}
+EXPECTED ANSWER: {short_answer}
+
+--- PROVIDED DOCUMENT (doc_id: {doc_id}, title: "{title}") ---
+{document_chunks_text}
+---
+
+ANALYSIS INSTRUCTIONS
+1. Enumerate every fact the question requires to derive the EXPECTED ANSWER. Each fact must be a separate atomic statement.
+2. For each required fact, state whether it is PRESENT (explicitly stated or directly inferable) or ABSENT (missing, only hinted at, or requiring outside knowledge).
+3. If any required fact is ABSENT, the question is NOT solvable from this document alone.
+4. Be strict: the mere appearance of the answer word does not count as solvability -- the reasoning chain must be fully present.
+
+============================================================
+FEW-SHOT EXAMPLE 1 (unsolvable -> multi-hop)
+============================================================
+QUESTION: Which organization contracted the developer of the Falcon 9 rocket for crew transport missions to the International Space Station?
+EXPECTED ANSWER: NASA
+
+--- PROVIDED DOCUMENT (doc_id: doc_04521, title: "SpaceX") ---
+SpaceX developed the Falcon 9 launch vehicle, first flown in 2010 as a reusable orbital-class rocket. SpaceX has since launched many commercial and government missions.
+---
+
+OUTPUT
+{
+  "required_facts": [
+    {"fact": "The developer of Falcon 9 is SpaceX", "present": true, "evidence": "SpaceX developed the Falcon 9 launch vehicle"},
+    {"fact": "NASA contracted SpaceX for ISS crew transport", "present": false, "evidence": null}
+  ],
+  "all_facts_present": false,
+  "solvable_from_this_document_alone": false,
+  "confidence": "high",
+  "explanation": "The document establishes who developed Falcon 9 but contains no mention of NASA or ISS crew transport contracts."
+}
+
+============================================================
+FEW-SHOT EXAMPLE 2 (solvable -> SINGLE-HOP, reject)
+============================================================
+QUESTION: In what year did SpaceX first launch the Falcon 9?
+EXPECTED ANSWER: 2010
+
+--- PROVIDED DOCUMENT (doc_id: doc_04521, title: "SpaceX") ---
+SpaceX developed the Falcon 9 launch vehicle, first flown in 2010 as a reusable orbital-class rocket.
+---
+
+OUTPUT
+{
+  "required_facts": [
+    {"fact": "SpaceX first launched the Falcon 9 in 2010", "present": true, "evidence": "SpaceX developed the Falcon 9 launch vehicle, first flown in 2010"}
+  ],
+  "all_facts_present": true,
+  "solvable_from_this_document_alone": true,
+  "confidence": "high",
+  "explanation": "All the information needed for the answer is in this single document."
+}
+
+============================================================
+NOW EVALUATE THE CASE AT THE TOP
+============================================================
+
+Output ONLY the JSON object. No preamble, no markdown fences.

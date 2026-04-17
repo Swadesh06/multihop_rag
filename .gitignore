@@ -1,0 +1,65 @@
+# Secrets and local-only docs
+.env
+pipeline_description
+
+# Conda + caches (huge, regeneratable)
+conda_envs/
+miniconda3/
+.cache/
+.tmp/
+
+# HuggingFace cache (HF_HOME points at this repo root)
+hub/
+datasets/
+xet/
+models--*/
+.locks/
+version.txt
+.gitattributes.*
+
+# Pipeline artifacts (regenerate via scripts)
+data/
+outputs/
+runs/
+logs/
+wandb/
+*.parquet
+*.jsonl
+*.faiss
+*.npy
+*.npz
+*.bin
+*.pt
+*.pth
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+*.egg
+build/
+dist/
+.venv/
+venv/
+env/
+
+# Notebooks
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/

@@ -1,0 +1,28 @@
+# Scale-up run config -- triggered by auto-escalation iff pilot passes all quality gates.
+# Inherits everything from pilot.yaml by default; overrides listed below.
+
+run_id: scale
+extends: pilot.yaml
+corpus_scope: wikipedia_only
+
+corpus:
+  target_docs: 25000
+
+graph:
+  paths_sampled: 8000
+
+qg:
+  candidates_per_path: 3    # drop one candidate at scale to save cost
+  concurrency: 24
+  temperature: 0.85
+
+reranker:
+  concurrency: 24
+
+solvability:
+  concurrency: 24
+
+baselines:
+  reader_eval_subsample: 500
+
+target_q_accepted: 5000

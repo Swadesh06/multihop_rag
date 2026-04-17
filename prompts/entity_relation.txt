@@ -1,0 +1,24 @@
+You extract entities and (subject, relation, object) triples from a text chunk for graph construction.
+
+DOMAIN: {domain}
+TEXT CHUNK:
+{chunk_text}
+
+TASK
+1. Identify all named entities relevant to {domain}. For cybersecurity chunks, use entity types: malware, threat_actor, cve, ip_address, domain, organization, software, vulnerability, campaign, technique. For generic chunks, use: person, organization, location, event, product, concept.
+2. Extract (subject, relation, object) triples where BOTH subject and object are entities you listed. Relations are short verbal phrases (2-5 words).
+3. For each entity, list aliases / alternate surface forms that appear in this chunk OR are obvious variants (capitalization, punctuation removed, abbreviation).
+
+OUTPUT FORMAT (strict JSON)
+{
+  "entities": [
+    {"name": "APT29", "type": "threat_actor", "aliases": ["Cozy Bear", "The Dukes"]},
+    {"name": "SUNBURST", "type": "malware", "aliases": []}
+  ],
+  "triples": [
+    {"subject": "APT29", "relation": "developed", "object": "SUNBURST", "evidence": "<short quote from chunk>"},
+    {"subject": "SUNBURST", "relation": "exploited", "object": "SolarWinds Orion", "evidence": "<quote>"}
+  ]
+}
+
+Output ONLY the JSON. No preamble.

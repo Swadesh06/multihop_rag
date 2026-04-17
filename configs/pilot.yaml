@@ -1,0 +1,126 @@
+# Pilot run config -- first end-to-end pass targeting ~1000 validated multi-hop Q's.
+# Wikipedia only (ThreatIntelligenceCorpus deferred to a later phase).
+
+run_id: pilot
+corpus_scope: wikipedia_only
+
+corpus:
+  target_docs: 5000
+  min_char: 500
+  min_links: 3
+  link_target_overlap_min: 0.5
+  # Replaces raw freq cap: entity with doc-freq above this percentile (within the
+  # selected corpus) is treated as generic and contributes less to edge weight.
+  generic_percentile_cutoff: 0.98
+  use_idf_weighting: true
+
+  # Seed categories for domain clustering (Section 3.2 Filter 4). Sampling
+  # prioritizes articles linked to/from these category pages so neighborhoods
+  # are dense.
+  seed_categories:
+    - 20th century scientists
+    - European history
+    - Technology companies
+    - Space exploration
+    - Nobel laureates
+    - Philosophers
+    - Film directors
+    - Scientific discoveries
+
+chunking:
+  size_words_min: 150
+  size_words_max: 300
+  overlap_words_min: 30
+  overlap_words_max: 50
+  preserve_sections: true
+
+graph:
+  max_hops: 4
+  paths_sampled: 1000
+  # Measure what reasoning types the graph can supply, then stratify proportional
+  # to availability clipped to these caps. Avoids forcing low-quality comparison
+  # or temporal questions when the link topology doesn't support them.
+  reasoning_type_caps:
+    bridge_entity: 0.60
+    comparison: 0.35
+    temporal_chain: 0.30
+    cause_effect: 0.20
+    definition_application: 0.15
+  # Heuristics for path quality scoring.
+  bridge_entity_specificity_min: 0.2  # 0 = totally generic, 1 = totally rare
+  bridge_entity_specificity_max: 0.9
+  prefer_indirect_bridges: true       # bridge != title of either endpoint doc
+
+qg:
+  candidates_per_path: 4
+  concurrency: 16
+  batch_size_per_gather: 128
+  temperature: 0.9
+  top_p: 0.95
+  require_quoted_spans: true   # long_answer must cite verbatim spans -> trivial chunk mapping
+
+reranker:
+  # LLM-as-judge best-of-N over QG candidates. Replaces pure heuristic scoring.
+  enabled: true
+  concurrency: 16
+  batch_size_per_gather: 128
+  # Weight heuristic score vs judge score: final = alpha*judge + (1-alpha)*heuristic
+  judge_weight: 0.7
+
+solvability:
+  concurrency: 16
+  batch_size_per_gather: 128
+  only_test_grade_ge: 2   # only test grade>=2 supporting docs (essential + strong)
+
+filters:
+  min_question_words: 8
+  max_question_words: 60
+  min_long_answer_words: 40
+  max_long_answer_words: 150
+  max_short_answer_words: 8
+  min_docs_cited_in_long_answer: 2
+  max_lexical_overlap_with_any_chunk: 0.60
+  reject_pronoun_short_answers: true
+  reject_if_short_answer_in_question: true
+
+dedup:
+  jaccard_threshold: 0.85
+  embedding_cosine_threshold: 0.90
+
+distractors:
+  per_question: 3
+  # Mix semantic (embedding) and lexical (BM25) hard negatives for diverse signal.
+  mix:
+    embedding_topk: 2
+    bm25_topk: 1
+  # Pull top_k*3 candidates, then filter out gold docs.
+  pool_multiplier: 3
+
+baselines:
+  run_bm25: true
+  run_dense: true
+  run_reader: true
+  # Subsample for reader eval -- Qwen is slow on long contexts. Run on all for BM25/dense.
+  reader_eval_subsample: 200
+
+target_q_accepted: 1000
+
+# Phase 11 reference comparison dataset.
+reference_dataset:
+  hf_id: rajat5039/wiki-multihop-qa-500k
+  sample_size: 5000
+
+# Phase 0 behavior.
+phase0:
+  probe_gemini_candidates: true
+  required_packages_pip:
+    - google-genai
+    - sentence-transformers
+    - blingfire
+    - pysbd
+    - orjson
+    - rank-bm25
+    - faiss-cpu
+    - pymupdf
+    - pdfplumber
+    - lxml

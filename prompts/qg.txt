@@ -1,0 +1,109 @@
+You are generating multi-hop questions for a Retrieval-Augmented Generation (RAG) training dataset.
+
+Below are passages from {n_docs} different documents. A shared entity connects them: "{bridge_entity}".
+
+============================================================
+SOURCE DOCUMENTS
+============================================================
+{documents_block}
+============================================================
+
+TASK
+Generate ONE multi-hop question that REQUIRES combining information from at least two of the above documents. The answer MUST NOT be fully recoverable from any single document alone.
+
+HARD REQUIREMENTS
+1. The question sounds natural -- like something a curious person would actually ask.
+2. The question does NOT directly name the bridge entity "{bridge_entity}"; the reader must infer it.
+3. `short_answer`: 1-6 words, exact phrase, no pronouns/generics ("yes"/"no"/"it"/"they"/etc. are forbidden).
+4. `long_answer`: 40-120 words grounded in the source documents. For EVERY factual claim, cite the source with "(Document X)" and INCLUDE THE EXACT QUOTED SPAN from that document in double-quotes. Do not paraphrase the citation text.
+5. `answer_points`: 2-4 atomic facts a correct answer must contain.
+6. `supporting_docs`: each cited document with a grade.
+   - grade 3 = essential (question unanswerable without it)
+   - grade 2 = strong supporting evidence
+   - grade 1 = useful context
+7. `reasoning_type`: one of bridge_entity, comparison, temporal_chain, cause_effect, definition_application.
+8. `difficulty`: one of easy, medium, hard.
+9. `reasoning_chain`: explicit step-by-step logic: "Step 1: Document X says... Step 2: Document Y says... Therefore..."
+10. `quoted_spans`: array of exact verbatim spans (5-40 words each) from the source documents keyed by doc_id. Each span must appear CHARACTER-FOR-CHARACTER in that document.
+
+NEGATIVE EXAMPLES (DO NOT GENERATE)
+- Questions whose short_answer appears verbatim in the question.
+- Questions answerable from any single source document.
+- Questions that name the bridge entity directly.
+- Long answers that paraphrase instead of quoting the source.
+
+============================================================
+FEW-SHOT EXAMPLE 1 (bridge_entity)
+============================================================
+SOURCES
+--- Document A (doc_id: doc_04521, title: "SpaceX") ---
+Space Exploration Technologies Corp., trading as SpaceX, is an American aerospace manufacturer... The company developed the Falcon 9 launch vehicle, first flown in 2010 as a reusable orbital-class rocket.
+
+--- Document B (doc_id: doc_08834, title: "Commercial Crew Program") ---
+The Commercial Crew Program is a human spaceflight program operated by NASA. NASA selected SpaceX and Boeing in 2014 to develop crew transportation to the International Space Station.
+
+BRIDGE ENTITY: SpaceX
+
+OUTPUT
+{
+  "query": "Which organization contracted the developer of the Falcon 9 rocket for crew transport missions to the International Space Station?",
+  "short_answer": "NASA",
+  "long_answer": "SpaceX developed the Falcon 9: \"The company developed the Falcon 9 launch vehicle, first flown in 2010 as a reusable orbital-class rocket\" (Document A). Later, NASA contracted SpaceX for ISS crew transport: \"NASA selected SpaceX and Boeing in 2014 to develop crew transportation to the International Space Station\" (Document B). Therefore, NASA is the organization that contracted the developer of Falcon 9 for ISS crew transport.",
+  "answer_points": [
+    "SpaceX developed the Falcon 9 rocket",
+    "NASA contracted SpaceX for ISS crew transport"
+  ],
+  "supporting_docs": [
+    {"doc_id": "doc_04521", "grade": 3},
+    {"doc_id": "doc_08834", "grade": 3}
+  ],
+  "reasoning_type": "bridge_entity",
+  "difficulty": "medium",
+  "reasoning_chain": "Step 1: Document A establishes SpaceX developed Falcon 9. Step 2: Document B establishes NASA contracted SpaceX for ISS crew transport. Bridge entity SpaceX links developer to contractee. Conclusion: NASA.",
+  "bridge_entity": "SpaceX",
+  "quoted_spans": {
+    "doc_04521": ["The company developed the Falcon 9 launch vehicle, first flown in 2010 as a reusable orbital-class rocket"],
+    "doc_08834": ["NASA selected SpaceX and Boeing in 2014 to develop crew transportation to the International Space Station"]
+  }
+}
+
+============================================================
+FEW-SHOT EXAMPLE 2 (comparison)
+============================================================
+SOURCES
+--- Document A (doc_id: doc_02211, title: "Marie Curie") ---
+Maria Salomea Sklodowska-Curie (1867-1934) was a Polish-born French physicist who conducted pioneering research on radioactivity. She was the first woman to win a Nobel Prize and the only person to win Nobel Prizes in two different sciences: Physics in 1903 and Chemistry in 1911.
+
+--- Document B (doc_id: doc_07731, title: "Linus Pauling") ---
+Linus Carl Pauling (1901-1994) was an American chemist and peace activist. He received the Nobel Prize in Chemistry in 1954 and the Nobel Peace Prize in 1962, making him one of only two people to win Nobel Prizes in two different fields (the other being Marie Curie).
+
+BRIDGE ENTITY: Nobel Prizes in two fields
+
+OUTPUT
+{
+  "query": "Between the first woman to win a Nobel Prize and the chemist who later became a peace activist, which one received their two Nobel Prizes in different scientific fields rather than one science and one non-science?",
+  "short_answer": "Marie Curie",
+  "long_answer": "Marie Curie received both of her Nobel Prizes in sciences: \"Physics in 1903 and Chemistry in 1911\" (Document A). Linus Pauling, in contrast, received one scientific and one non-scientific Nobel: \"the Nobel Prize in Chemistry in 1954 and the Nobel Peace Prize in 1962\" (Document B). Since the question asks who received both in different SCIENCES, the answer is Marie Curie.",
+  "answer_points": [
+    "Marie Curie won Physics (1903) and Chemistry (1911) Nobels",
+    "Pauling won Chemistry (1954) and Peace (1962) -- one not a science"
+  ],
+  "supporting_docs": [
+    {"doc_id": "doc_02211", "grade": 3},
+    {"doc_id": "doc_07731", "grade": 3}
+  ],
+  "reasoning_type": "comparison",
+  "difficulty": "hard",
+  "reasoning_chain": "Step 1: Doc A shows Curie's two Nobels are both sciences. Step 2: Doc B shows Pauling's two Nobels are Chemistry + Peace (non-science). Step 3: Identify each person by their descriptor; choose the one satisfying 'two different sciences'.",
+  "bridge_entity": "Nobel Prizes in two fields",
+  "quoted_spans": {
+    "doc_02211": ["Physics in 1903 and Chemistry in 1911"],
+    "doc_07731": ["the Nobel Prize in Chemistry in 1954 and the Nobel Peace Prize in 1962"]
+  }
+}
+
+============================================================
+NOW GENERATE FOR THE SOURCE DOCUMENTS AT THE TOP
+============================================================
+
+Output ONLY the JSON object matching the schema above. No preamble, no markdown fences, no explanation.

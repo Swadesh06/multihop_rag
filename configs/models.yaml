@@ -1,0 +1,118 @@
+# Model configuration for the Multi-Hop RAG pipeline.
+# Model IDs use a candidate fallback list -- Phase 0 probes them in order and
+# updates `resolved_model_id` in outputs/run_progress.json for all downstream phases.
+
+llm:
+  # Step 5 -- high-volume question generation. Gemini 3.1 Flash-Lite per pipeline_description.
+  question_generation:
+    provider: gemini
+    candidates:
+      - gemini-3.1-flash-lite-preview
+      - gemini-2.5-flash-lite
+      - gemini-2.0-flash-lite
+    thinking_level: minimal
+    temperature: 0.9
+    max_output_tokens: 1024
+
+  # Step 6 -- LLM-as-judge reranker over best-of-N QG candidates. Upgrade over rule-based scoring.
+  reranker:
+    provider: gemini
+    candidates:
+      - gemini-3-flash-preview
+      - gemini-2.5-flash
+      - gemini-2.0-flash
+    thinking_level: low
+    temperature: 0.0
+    max_output_tokens: 256
+
+  # Step 7 -- single-document solvability gate. Gemini 3 Flash per pipeline_description.
+  solvability:
+    provider: gemini
+    candidates:
+      - gemini-3-flash-preview
+      - gemini-2.5-flash
+      - gemini-2.0-flash
+    thinking_level: medium
+    temperature: 0.2
+    max_output_tokens: 800
+
+  # Phase 6 final validation pass over a sample.
+  validation:
+    provider: gemini
+    candidates:
+      - gemini-3-flash-preview
+      - gemini-2.5-flash
+      - gemini-2.0-flash
+    thinking_level: medium
+    temperature: 0.0
+    max_output_tokens: 512
+
+  # Chunk-mapping fallback -- only invoked when string + embedding match fail.
+  chunk_mapping:
+    provider: gemini
+    candidates:
+      - gemini-3.1-flash-lite-preview
+      - gemini-2.5-flash-lite
+    thinking_level: minimal
+    temperature: 0.0
+    max_output_tokens: 256
+
+embedding:
+  # Primary embedder -- upgraded from bge-large to bge-m3 (dense + sparse + multi-vector,
+  # 8192 ctx, consistently beats bge-large on retrieval benchmarks).
+  primary:
+    model_id: BAAI/bge-m3
+    dim: 1024
+    max_seq_length: 8192
+    batch_size: 32
+    device: cuda
+    fp16: true
+    pooling: cls
+    normalize: true
+
+  # Cheap fallback for sanity checks.
+  small:
+    model_id: sentence-transformers/all-MiniLM-L6-v2
+    dim: 384
+    max_seq_length: 256
+    batch_size: 256
+    device: cuda
+    fp16: true
+    normalize: true
+
+# Sentence boundary detection for chunking -- blingfire (fast, accurate) with pysbd fallback.
+sentence_splitter:
+  primary: blingfire
+  fallback: pysbd
+
+# Phase 10 -- reader baseline. Modern 3B instruct model; stronger than Flan-T5-Large
+# while keeping disk footprint small (~6 GB) and VRAM <= 7 GB in fp16.
+reader_baseline:
+  model_id: Qwen/Qwen2.5-3B-Instruct
+  dtype: float16
+  max_input_tokens: 4096
+  max_output_tokens: 256
+  batch_size: 8
+  prefetch: false   # lazy: weights download just before Phase 10
+
+# Phase 9 -- retrieval baselines. Run both BM25 (lexical) and dense (semantic) for
+# orthogonal difficulty signals.
+retrieval_baselines:
+  bm25:
+    enabled: true
+    k1: 1.5
+    b: 0.75
+    top_k: 10
+  dense:
+    enabled: true
+    model_id: BAAI/bge-m3
+    top_k: 10
+
+# Quality gates evaluated in Phase 12 report.py; all must pass for auto-escalation.
+quality_gates:
+  multihop_rate_min: 0.95
+  avg_quality_score_min: 0.70
+  max_reasoning_type_share: 0.60
+  min_accepted_pct: 0.90
+  bm25_recall_at_10_max: 0.70
+  reader_f1_max: 0.60
