@@ -85,40 +85,49 @@ def main():
     idf = idf_weights(inv, n, min_df=2, generic_percentile=pct)
     log.info(f"idf entries (after percentile cutoff={pct})={len(idf)}")
 
+    out_e = Path(args.out_edges)
+    if out_e.exists():
+        log.info(f"edges file exists at {out_e}; rebuilding from scratch anyway")
     log.info("building edges")
     edges = build_edges(docs, inv, idf, t_idx)
     log.info(f"edges={len(edges)}")
 
-    # Persist edges
-    rows = []
-    for (a, b), ed in edges.items():
-        rows.append({
-            "doc_a": a, "doc_b": b,
-            "weight": float(ed["weight"]),
-            "direct": bool(ed["direct"]),
-            "shared_entities": ed["shared_entities"][:20],
-            "n_shared": len(ed["shared_entities"]),
-        })
+    # Persist edges in one shot
+    rows = [{"doc_a": a, "doc_b": b, "weight": float(ed["weight"]),
+             "direct": bool(ed["direct"]),
+             "shared_entities": ed["shared_entities"][:20],
+             "n_shared": len(ed["shared_entities"])}
+            for (a, b), ed in edges.items()]
     edf = pd.DataFrame(rows)
-    out_e = Path(args.out_edges)
     out_e.parent.mkdir(parents=True, exist_ok=True)
     edf.to_parquet(out_e, engine="pyarrow", index=False)
     log.info(f"wrote {out_e} rows={len(edf)}")
+    del rows
+    del edf
 
     # Sample paths: 2-hop (direct pairs with >=1 shared entity) + some 3-hop
     n_paths_target = int(g["paths_sampled"])
     rng = random.Random(23)
 
-    # Score every 2-hop edge and keep top ~5x target by weight
-    edge_scored = []
+    # Pre-filter edges by weight to reduce scoring cost -- 798K edges are too
+    # many to score individually. Take top N by raw weight, then score.
+    PRE_SCORE_N = max(n_paths_target * 30, 8000)
+    filtered_edges = []
     for (a, b), ed in edges.items():
         if not ed["shared_entities"] and not ed["direct"]:
             continue
-        # pick bridge as highest-idf shared entity; for direct-only edges use opposite title
+        filtered_edges.append(((a, b), ed))
+    filtered_edges.sort(key=lambda kv: -kv[1]["weight"])
+    filtered_edges = filtered_edges[:PRE_SCORE_N]
+    log.info(f"pre-filtered edges for scoring: {len(filtered_edges)} (from {len(edges)})")
+
+    edge_scored = []
+    pem_s = ProgressEmitter("03_graph_score", total=len(filtered_edges),
+                             every_n=1000, every_s=10.0)
+    for (a, b), ed in filtered_edges:
         if ed["shared_entities"]:
             bridge = max(ed["shared_entities"], key=lambda e: idf.get(e, 0.0))
         else:
-            # use the other doc's title as bridge (still valid per pipeline 5.1)
             bridge = (doc_by_id[b].get("title") or "").lower()
         shared = list(ed["shared_entities"])
         rt = infer_reasoning_type(doc_by_id[a], doc_by_id[b], shared, idf)
@@ -132,6 +141,8 @@ def main():
                             "path_quality_score": s,
                             "weight": float(ed["weight"]),
                             "direct": ed["direct"]})
+        pem_s.tick()
+    pem_s.done()
     edge_scored.sort(key=lambda r: -r["path_quality_score"])
     log.info(f"scored 2-hop candidates={len(edge_scored)}")
 
@@ -139,26 +150,35 @@ def main():
     caps = g.get("reasoning_type_caps", {})
     target_per_type = {k: max(1, int(v * n_paths_target)) for k, v in caps.items()}
 
-    # First pass: fill each bucket with its cap from highest-scored
+    # First pass: fill each bucket with its cap from highest-scored.
     picked: list[dict] = []
     per_type_count = Counter()
-    rem = list(edge_scored)
+    picked_set: set[tuple] = set()
+    def _key(r: dict) -> tuple:
+        return (tuple(r["doc_ids"]), r["bridge_entity"])
     for ty, cap in target_per_type.items():
-        take = [r for r in rem if r["reasoning_type_inferred"] == ty][:cap]
-        picked.extend(take)
-        per_type_count[ty] = len(take)
-        rem = [r for r in rem if r not in set(id(x) for x in take)]
-    # Use set of id() above doesn't work across, do proper set of tuples:
-    picked_set = set((tuple(p["doc_ids"]), p["bridge_entity"]) for p in picked)
+        take_n = 0
+        for r in edge_scored:
+            if take_n >= cap:
+                break
+            if r["reasoning_type_inferred"] != ty:
+                continue
+            k = _key(r)
+            if k in picked_set:
+                continue
+            picked.append(r)
+            picked_set.add(k)
+            per_type_count[ty] += 1
+            take_n += 1
     # Top up to target from remaining
     for r in edge_scored:
         if len(picked) >= n_paths_target:
             break
-        key = (tuple(r["doc_ids"]), r["bridge_entity"])
-        if key in picked_set:
+        k = _key(r)
+        if k in picked_set:
             continue
         picked.append(r)
-        picked_set.add(key)
+        picked_set.add(k)
         per_type_count[r["reasoning_type_inferred"]] += 1
     log.info(f"picked 2-hop={len(picked)} by_type={dict(per_type_count)}")
 

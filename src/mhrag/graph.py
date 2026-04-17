@@ -4,10 +4,14 @@ No networkx dependency on hot path -- we store edges as a dict-of-dicts and
 enumerate 2/3-hop paths directly over the adjacency list.
 """
 from __future__ import annotations
-import math, random
+import math, random, re
 from collections import defaultdict
 from itertools import combinations
 from typing import Iterable
+
+_YEAR_RE = re.compile(r"\b(1[0-9]{3}|20[0-9]{2})\b")
+_CAUSE_WORDS = ("caused", "triggered", "resulted", "led", "sparked", "provoked",
+                "after", "because", "due")
 
 
 def build_inverted_index(docs: list[dict]) -> dict[str, set[str]]:
@@ -139,21 +143,18 @@ def infer_reasoning_type(a_doc: dict, b_doc: dict, shared: list[str],
                          "winner", "recipient"}:
             return "comparison"
 
-    # temporal_chain: shared entity with year words in both
-    YEAR = __import__("re").compile(r"\b(1[0-9]{3}|20[0-9]{2})\b")
+    # temporal_chain: shared entity with year words in both (cheap on first 2000 chars)
     if shared:
-        a_years = set(YEAR.findall((a_doc.get("clean_text") or "")[:4000]))
-        b_years = set(YEAR.findall((b_doc.get("clean_text") or "")[:4000]))
+        a_txt = (a_doc.get("clean_text") or "")[:2000]
+        b_txt = (b_doc.get("clean_text") or "")[:2000]
+        a_years = set(_YEAR_RE.findall(a_txt))
+        b_years = set(_YEAR_RE.findall(b_txt))
         if a_years and b_years and a_years != b_years:
             return "temporal_chain"
-
-    # cause_effect: verb polarity heuristic on first 500 chars of each
-    CAUSE = {"caused", "triggered", "resulted", "led", "sparked", "provoked",
-             "after", "because", "due"}
-    at = (a_doc.get("clean_text") or "")[:500].lower()
-    bt = (b_doc.get("clean_text") or "")[:500].lower()
-    if any(w in at for w in CAUSE) and any(w in bt for w in CAUSE):
-        return "cause_effect"
+        at = a_txt[:500].lower()
+        bt = b_txt[:500].lower()
+        if any(w in at for w in _CAUSE_WORDS) and any(w in bt for w in _CAUSE_WORDS):
+            return "cause_effect"
 
     return "bridge_entity"
 

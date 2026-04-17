@@ -92,11 +92,34 @@ def pack_chunks(sents: list[str], size_min: int, size_max: int,
     return chunks
 
 
+def _coerce_str(x) -> str:
+    """Coerce potentially-ndarray / None / bytes to a plain string."""
+    if x is None:
+        return ""
+    if isinstance(x, bytes):
+        try:
+            return x.decode("utf-8", errors="replace")
+        except Exception:
+            return ""
+    if isinstance(x, str):
+        return x
+    # numpy / pandas object: take first element if 1-d
+    try:
+        import numpy as _np
+        if isinstance(x, _np.ndarray):
+            if x.ndim == 0:
+                return str(x.item())
+            return str(x.tolist())
+    except Exception:
+        pass
+    return str(x)
+
+
 def chunk_doc(doc: dict, size_min: int = 150, size_max: int = 300,
               overlap_min: int = 30, overlap_max: int = 50) -> list[dict]:
     """Doc -> list[chunk]. Records section_title and char offsets in clean_text."""
-    clean = doc.get("clean_text") or ""
-    raw = doc.get("raw_text") or ""
+    clean = _coerce_str(doc.get("clean_text"))
+    raw = _coerce_str(doc.get("raw_text"))
     did = doc["doc_id"]
     sents = split_sentences(clean)
     if not sents:
