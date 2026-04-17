@@ -24,9 +24,10 @@ run_phase() {
 DATA=$ROOT/data
 OUT=$ROOT/outputs
 
-# Phase 1
+# Phase 1 -- use pool_mult=8 (200K pool) for 25K target; fits in RAM whereas
+# the default 20 (500K) does not on a 256GB box.
 run_phase 01_corpus \
-  --out "$DATA/corpus/scale_docs.parquet"
+  --out "$DATA/corpus/scale_docs.parquet" --pool_mult 8
 # Phase 2
 run_phase 02_chunk \
   --docs "$DATA/corpus/scale_docs.parquet" --out "$DATA/chunks/scale_chunks.parquet"
