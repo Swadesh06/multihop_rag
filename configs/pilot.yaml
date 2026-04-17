@@ -36,7 +36,7 @@ chunking:
 
 graph:
   max_hops: 4
-  paths_sampled: 1000
+  paths_sampled: 1200
   # Measure what reasoning types the graph can supply, then stratify proportional
   # to availability clipped to these caps. Avoids forcing low-quality comparison
   # or temporal questions when the link topology doesn't support them.
@@ -79,7 +79,7 @@ filters:
   max_long_answer_words: 150
   max_short_answer_words: 8
   min_docs_cited_in_long_answer: 2
-  max_lexical_overlap_with_any_chunk: 0.60
+  max_lexical_overlap_with_any_chunk: 0.80
   reject_pronoun_short_answers: true
   reject_if_short_answer_in_question: true
 

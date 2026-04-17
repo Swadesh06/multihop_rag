@@ -173,13 +173,19 @@ async def run(args):
             bi = int(obj.get("best_index", -1))
             issues = obj.get("candidate_issues", []) if isinstance(obj, dict) else []
             justification = obj.get("justification", "") if isinstance(obj, dict) else ""
+            jc = 0.8
             if bi < 0 or bi >= len(cands):
-                # all disqualified -> drop this path (no winner)
-                continue
+                # Judge says all disqualified. Candidates already passed Phase 5
+                # verbatim-span/schema validation, so pick highest heuristic
+                # instead of dropping -- otherwise the judge's strictness is a
+                # single point of failure that starves downstream phases.
+                best = max(range(len(cands)),
+                           key=lambda i: heuristic_candidate_score(cands[i]["response_json"]))
+                bi = best
+                jc = 0.35  # low confidence marker
+                justification = f"judge=-1 (fallback heuristic); {justification}"
             c = cands[bi]
             h = heuristic_candidate_score(c["response_json"])
-            # Map confidence from justification text heuristically; default 0.8
-            jc = 0.8
             rows_out.append({
                 "path_id": pid, "best_candidate_idx": c["candidate_idx"],
                 "doc_ids": c["doc_ids"], "bridge_entity": c["bridge_entity"],

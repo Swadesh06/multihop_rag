@@ -211,12 +211,18 @@ def main():
         log.info(f"added 3-hop={added}")
 
     picked = picked[:n_paths_target]
-    # Assign path_id and attach chunk hints
+    # Content-hash path_id -- stable across re-samples so Phase 5/6/7 resume
+    # logic can skip paths already processed in a prior run.
+    import hashlib
+    def _pid(docs: list[str], bridge: str) -> str:
+        h = hashlib.sha1(("|".join(sorted(docs)) + "||" + bridge).encode()).hexdigest()
+        return f"p_{h[:12]}"
+
     out_p = Path(args.out_paths)
     out_p.parent.mkdir(parents=True, exist_ok=True)
     with open(out_p, "w") as f:
         for i, p in enumerate(picked):
-            pid = f"p_{i:05d}"
+            pid = _pid(p["doc_ids"], p["bridge_entity"])
             hint = {}
             for did in p["doc_ids"]:
                 hint_chunks = chunks_for_doc_entity(chunks_by_doc, did, p["bridge_entity"], k=3)

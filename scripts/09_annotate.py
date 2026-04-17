@@ -51,6 +51,22 @@ def main():
     filtered = read_jsonl(Path(args.filtered))
     log.info(f"filtered: {len(filtered)}")
 
+    # Load paths to recover graph-inferred reasoning_type per path_id.
+    # The QG model's reasoning_type is heavily biased toward bridge_entity --
+    # we trust the graph-level heuristic (matched to reasoning_type_caps in
+    # Phase 3 sampling) for distribution diversity.
+    paths_rt: dict[str, str] = {}
+    paths_fp = Path(str(Path(args.filtered).parent.parent / "data" / "graphs" / "pilot_paths.jsonl"))
+    if not paths_fp.exists():
+        from mhrag.env import DATA as _D
+        paths_fp = _D / "graphs" / "pilot_paths.jsonl"
+    if paths_fp.exists():
+        with open(paths_fp) as f:
+            for ln in f:
+                p = json.loads(ln)
+                paths_rt[p["path_id"]] = p.get("reasoning_type_inferred", "bridge_entity")
+        log.info(f"loaded {len(paths_rt)} path reasoning_types")
+
     docs_df = pd.read_parquet(args.docs)
     doc_by_id = {r["doc_id"]: r for r in docs_df.to_dict("records")}
     all_doc_ids = [r["doc_id"] for r in docs_df.to_dict("records")]
@@ -93,7 +109,10 @@ def main():
         long_answer = rj.get("long_answer", "")
         answer_points = rj.get("answer_points", [])
         supporting_docs = rj.get("supporting_docs", [])
-        reasoning_type = rj.get("reasoning_type", "")
+        # Prefer graph-level reasoning_type (stable distribution) over model's
+        # (model strongly biased toward bridge_entity).
+        pid_r = r.get("path_id")
+        reasoning_type = paths_rt.get(pid_r) or rj.get("reasoning_type", "bridge_entity")
         reasoning_chain = rj.get("reasoning_chain", "")
         bridge_entity = rj.get("bridge_entity", "")
         quoted_spans = rj.get("quoted_spans", {})
