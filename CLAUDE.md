@@ -76,6 +76,16 @@ A parallel `mhrag` env is being built by `setup_conda.sh` in a tmux session name
 
 `HF_HOME=/workspace/swadesh/multihop_rag`. All downloaded models and datasets land inside the repo directory. The `.gitignore` already excludes `hub/`, `datasets/`, `xet/`, `models--*`, `.locks/`.
 
+### 2.6 Git push via SSH (tmpfs key)
+
+The workspace filesystem is mfs and does not honor chmod, so the default `~/.ssh/id_ed25519` (perms 666) is rejected by OpenSSH. Fix at session start -- this is idempotent:
+
+```bash
+install -m 600 /workspace/.ssh/id_ed25519 /tmp/id_ed25519_gh
+```
+
+The repo's `core.sshCommand` is already set to use `/tmp/id_ed25519_gh`. If the file is missing (fresh boot), recreate it before any `git push`.
+
 ---
 
 ## 3. Hardware and parallelization principles
