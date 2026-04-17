@@ -144,7 +144,10 @@ def main():
     inv: dict[str, set[int]] = defaultdict(set)
     for i, r in enumerate(pre_f5):
         for l in (r.get("links") or []):
-            t = unquote(l.get("href", "")).strip().lower()
+            href = l.get("href") or ""
+            if not href:
+                continue
+            t = unquote(href).strip().lower()
             if not t or t.startswith("wikt:") or "#" in t:
                 continue
             if t in title_idx_small:
